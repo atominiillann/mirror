@@ -1,24 +1,17 @@
-import {
-  ADJACENCY,
-  QUARTERS,
-  RESOURCE_TYPES,
-  minRetention,
-  type DisasterLevel,
-  type QuarterCode,
-  type Role,
-} from '../data/city';
+import { ADJACENCY, QUARTERS, type QuarterCode } from '../data/city';
+import type { Stock } from '../backend';
 
 interface Props {
   code: QuarterCode;
+  /** Stocks de toute la ville, venant de GET /resources */
+  stocks: Stock[];
+  /** City Director au niveau 5 : le serveur n'oblige à garder que 15 % */
   loweredRetention?: boolean;
-  // Props rendues optionnelles (?) pour éviter les erreurs dans le composant parent :
-  level?: DisasterLevel;
-  role?: Role;
-  onLevelChange?: (level: DisasterLevel) => void;
 }
 
-export default function QuarterPanel({ code, loweredRetention = false }: Props) {
+export default function QuarterPanel({ code, stocks, loweredRetention = false }: Props) {
   const quarter = QUARTERS[code];
+  const quarterStocks = stocks.filter((s) => s.district_code === code);
 
   return (
     <section className="panel">
@@ -36,39 +29,50 @@ export default function QuarterPanel({ code, loweredRetention = false }: Props) 
       </header>
 
       <h3>Resources {loweredRetention ? '(retention lowered to 15%)' : '(retention 30%)'}</h3>
-      <table className="res-table">
-        <thead>
-          <tr>
-            <th>Resource</th>
-            <th>Stock</th>
-            <th>Retained</th>
-            <th>Transferable</th>
-          </tr>
-        </thead>
-        <tbody>
-          {RESOURCE_TYPES.map((r) => {
-            const total = quarter.stock[r];
-            const keep = minRetention(total, loweredRetention);
-            const free = total - keep;
-            return (
-              <tr key={r}>
-                <td>{r}</td>
-                <td>{total}</td>
-                <td className="muted">{keep}</td>
-                <td>
-                  <span className="bar">
-                    <span
-                      className="bar-fill"
-                      style={{ width: `${(free / total) * 100}%`, background: quarter.color }}
-                    />
-                  </span>
-                  {free}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+      {quarterStocks.length === 0 ? (
+        <p className="muted">Loading stocks…</p>
+      ) : (
+        <table className="res-table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Stock</th>
+              <th>Retained</th>
+              <th>Transferable</th>
+            </tr>
+          </thead>
+          <tbody>
+            {quarterStocks.map((s) => {
+              // min_retention = 30 % du stock initial, calculé par le serveur
+              const keep = loweredRetention ? Math.ceil(s.initial_quantity * 0.15) : s.min_retention;
+              const free = Math.max(0, s.current_quantity - keep);
+              return (
+                <tr key={s.resource_name}>
+                  <td>{s.resource_name}</td>
+                  <td>
+                    {s.current_quantity}
+                    <span className="muted"> / {s.initial_quantity}</span>
+                  </td>
+                  <td className="muted">{keep}</td>
+                  <td>
+                    <span className="bar">
+                      <span
+                        className="bar-fill"
+                        style={{
+                          width: `${s.current_quantity > 0 ? (free / s.current_quantity) * 100 : 0}%`,
+                          background: quarter.color,
+                        }}
+                      />
+                    </span>
+                    {free}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </section>
   );
 }

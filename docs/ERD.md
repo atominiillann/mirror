@@ -64,3 +64,4 @@ erDiagram
     neighborhood ||--o{ transfers : "intermédiaire"
     users ||--o{ transfers : "effectue la demande"
     neighborhood ||--o{ disasters : "subit"
+```

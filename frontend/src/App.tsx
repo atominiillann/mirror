@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import './App.css';
 
-import Chat, { type ChatMessage } from './components/Chat';
+import CalendarModal from './components/CalendarModal';
+import Chat from './components/Chat';
 import DisasterAlertModal from './components/DisasterAlertModal';
 import Login from './components/Login';
 import Profile from './components/Profile';
@@ -9,6 +10,7 @@ import QuarterPanel from './components/QuarterPanel';
 import ResourceHistoryModal from './components/ResourceHistoryModal';
 import TokyorkMap, { type MapMode } from './components/TokyorkMap';
 
+import * as backend from './backend';
 import {
   LEVELS,
   QUARTERS,
@@ -16,124 +18,65 @@ import {
   ROLE_LABELS,
   type DisasterLevel,
   type QuarterCode,
-  type Role,
 } from './data/city';
 import { useDisasterAlerts } from './hooks/useDisasterAlerts';
-import type { NewTransfer, TransferRecord } from './types/resources';
+import { useKaiju } from './hooks/useKaiju';
 import type { User } from './types/user';
-
-const INITIAL_SEVERITY: Record<QuarterCode, DisasterLevel> = {
-  A: 1,
-  E: 2,
-  W: 1,
-  X: 3,
-  Z: 2,
-};
-
-// Transferts d'exemple, cohérents avec les règles (quartiers adjacents, niveaux, seuils de rétention)
-const INITIAL_TRANSFERS: TransferRecord[] = [
-  {
-    id: 'tr-1',
-    timestamp: '10:15',
-    fromQuarter: 'X',
-    toQuarter: 'A',
-    resource: 'Medical personnel',
-    quantity: 2,
-    status: 'approved',
-    requestedBy: 'Opérateur X',
-  },
-  {
-    id: 'tr-2',
-    timestamp: '10:22',
-    fromQuarter: 'Z',
-    toQuarter: 'W',
-    resource: 'Food & water supplies',
-    quantity: 4,
-    status: 'refused', // Z est en niveau 2 : pas de transfert entre quartiers
-    requestedBy: 'Opérateur Z',
-  },
-  {
-    id: 'tr-3',
-    timestamp: '10:31',
-    fromQuarter: 'X',
-    toQuarter: 'E',
-    resource: 'Communication equipment',
-    quantity: 3,
-    status: 'pending',
-    requestedBy: 'Opérateur X',
-  },
-];
 
 type ViewMode = 'dashboard' | 'profile';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => backend.loadSession()?.user ?? null);
   const [currentView, setCurrentView] = useState<ViewMode>('dashboard');
 
-  const [severity, setSeverity] = useState(INITIAL_SEVERITY);
-  const [selected, setSelected] = useState<QuarterCode>('X');
+  const [selected, setSelected] = useState<QuarterCode>(user?.quarter ?? 'X');
   const [mode, setMode] = useState<MapMode>('severity');
   const [showRoutes, setShowRoutes] = useState(true);
-  const [loweredRetention, setLoweredRetention] = useState(false);
 
-  // Le rôle est celui de l'utilisateur connecté : une seule source de vérité,
-  // donc la barre du haut, le profil et le chat affichent toujours le même.
-  const role: Role = user?.role ?? 'QC';
-  const changeRole = (newRole: Role) =>
-    setUser((current) => (current ? { ...current, role: newRole } : current));
-
-  // ÉTAT HISTORIQUE DES RESSOURCES
   const [isResourceModalOpen, setIsResourceModalOpen] = useState(false);
-  const [transfers, setTransfers] = useState<TransferRecord[]>(INITIAL_TRANSFERS);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [levelError, setLevelError] = useState('');
+  const [chatError, setChatError] = useState('');
 
-  // ÉTAT DU CHAT
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const city = useKaiju(user !== null);
 
-  // ALERTES CATASTROPHES (WebSocket du back-end), actives seulement une fois connecté
   const disasterAlerts = useDisasterAlerts(user !== null);
 
-  const cityLevel = useMemo(
-    () => Math.max(...QUARTER_CODES.map((c) => severity[c])) as DisasterLevel,
-    [severity],
-  );
+  const cityLevel = city.level;
+  const severity = Object.fromEntries(QUARTER_CODES.map((c) => [c, cityLevel])) as Record<QuarterCode, DisasterLevel>;
 
-  const setQuarterLevel = (code: QuarterCode, level: DisasterLevel) =>
-    setSeverity((s) => ({ ...s, [code]: level }));
-
-  const canLowerRetention = role === 'CD' && cityLevel === 5;
+  const loweredRetention = user?.role === 'CD' && cityLevel === 5;
 
   const handleLogin = (loggedUser: User) => {
     setUser(loggedUser);
+    setSelected(loggedUser.quarter ?? 'X');
     setCurrentView('dashboard');
   };
 
   const handleLogout = () => {
+    backend.clearSession();
     setUser(null);
     setCurrentView('dashboard');
   };
 
-  const handleSendMessage = (text: string) => {
-    if (!user) return;
-    const newMessage: ChatMessage = {
-      id: Date.now().toString(),
-      senderName: user.name,
-      senderRole: role,
-      text: text,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages((prev) => [...prev, newMessage]);
+  const handleLevelChange = async (level: DisasterLevel) => {
+    setLevelError('');
+    try {
+      await backend.setLevel(level);
+    } catch (err) {
+      setLevelError((err as Error).message);
+    }
   };
 
-  const handleAddTransfer = (newTransfer: NewTransfer) => {
-    const record: TransferRecord = {
-      ...newTransfer,
-      id: `tr-${Date.now()}`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-    setTransfers((prev) => [...prev, record]);
+  const handleSendMessage = async (text: string) => {
+    setChatError('');
+    try {
+      await backend.sendMessage(text);
+    } catch (err) {
+      setChatError(`Message non envoyé : ${(err as Error).message}`);
+    }
   };
 
-  // « Voir sur la carte » : on revient au tableau de bord, quartier touché sélectionné
   const handleShowDisasterQuarter = (code: QuarterCode) => {
     setSelected(code);
     setCurrentView('dashboard');
@@ -143,6 +86,13 @@ export default function App() {
   if (!user) {
     return <Login onLogin={handleLogin} />;
   }
+
+  const bannerText =
+    city.error ||
+    levelError ||
+    chatError ||
+    city.notice ||
+    (disasterAlerts.status === 'offline' ? 'Connexion temps réel perdue : reconnexion en cours…' : '');
 
   return (
     <div className="app">
@@ -162,8 +112,24 @@ export default function App() {
           CITY LEVEL {cityLevel} · {LEVELS[cityLevel].name}
         </div>
 
-        {/* Bouton Historique des ressources */}
+        {user.role === 'CD' && (
+          <label className="field inline">
+            <span>Set level</span>
+            <select
+              value={cityLevel}
+              onChange={(e) => handleLevelChange(Number(e.target.value) as DisasterLevel)}
+            >
+              {([1, 2, 3, 4, 5] as DisasterLevel[]).map((l) => (
+                <option key={l} value={l}>
+                  {l} · {LEVELS[l].name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         <button
+          type="button"
           onClick={() => setIsResourceModalOpen(true)}
           style={{
             background: '#101a33',
@@ -181,19 +147,36 @@ export default function App() {
           📦 Flux Ressources
         </button>
 
-        <label className="field inline">
+        <button
+          type="button"
+          onClick={() => setIsCalendarOpen(true)}
+          style={{
+            background: '#101a33',
+            border: '1px solid #2b3a63',
+            color: '#63d5ff',
+            padding: '6px 12px',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          🗓️ Calendrier
+        </button>
+
+        <div className="field inline">
           <span>Role</span>
-          <select value={role} onChange={(e) => changeRole(e.target.value as Role)}>
-            {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
-              <option key={r} value={r}>
-                {r} — {ROLE_LABELS[r]}
-              </option>
-            ))}
-          </select>
-        </label>
+          <b>
+            {user.role} — {ROLE_LABELS[user.role]}
+            {user.quarter ? ` · ${user.quarter}` : ''}
+          </b>
+        </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
+            type="button"
             onClick={() => setCurrentView(currentView === 'profile' ? 'dashboard' : 'profile')}
             style={{
               background: currentView === 'profile' ? '#1d2c52' : 'transparent',
@@ -207,6 +190,7 @@ export default function App() {
             👤 {user.name}
           </button>
           <button
+            type="button"
             onClick={handleLogout}
             style={{
               background: 'transparent',
@@ -222,10 +206,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Bandeau visible seulement si la connexion aux alertes est perdue */}
       <p className="live-banner" role="status">
-        {disasterAlerts.status === 'offline' &&
-          'Alertes catastrophes hors ligne : reconnexion automatique en cours…'}
+        {bannerText}
       </p>
 
       {currentView === 'profile' ? (
@@ -257,15 +239,6 @@ export default function App() {
                 />
                 Routes &amp; maritime lanes
               </label>
-              <label className="check" title="City Director only, at level 5">
-                <input
-                  type="checkbox"
-                  checked={loweredRetention}
-                  disabled={!canLowerRetention}
-                  onChange={(e) => setLoweredRetention(e.target.checked)}
-                />
-                Lower retention to 15%
-              </label>
             </div>
 
             <TokyorkMap
@@ -294,13 +267,7 @@ export default function App() {
           </section>
 
           <aside className="side-col">
-            <QuarterPanel
-              code={selected}
-              level={severity[selected]}
-              role={role}
-              loweredRetention={loweredRetention && canLowerRetention}
-              onLevelChange={(l) => setQuarterLevel(selected, l)}
-            />
+            <QuarterPanel code={selected} stocks={city.stocks} loweredRetention={loweredRetention} />
           </aside>
         </main>
       )}
@@ -308,8 +275,16 @@ export default function App() {
       <ResourceHistoryModal
         isOpen={isResourceModalOpen}
         onClose={() => setIsResourceModalOpen(false)}
-        transfers={transfers}
-        onAddTransfer={handleAddTransfer}
+        user={user}
+        stocks={city.stocks}
+        transfers={city.transfers}
+        onChanged={city.reload}
+      />
+
+      <CalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        disasters={city.disasters}
       />
 
       <DisasterAlertModal
@@ -319,7 +294,7 @@ export default function App() {
         onShowQuarter={handleShowDisasterQuarter}
       />
 
-      <Chat currentUser={{ name: user.name, role }} messages={messages} onSendMessage={handleSendMessage} />
+      <Chat currentUser={{ name: user.name, role: user.role }} messages={city.messages} onSendMessage={handleSendMessage} />
     </div>
   );
 }

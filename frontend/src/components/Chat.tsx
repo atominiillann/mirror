@@ -30,7 +30,7 @@ export default function Chat({ currentUser, messages, onSendMessage }: ChatProps
 
     return (
         <div className={`chat-widget ${isOpen ? 'open' : 'closed'}`}>
-            {/* En-tête du tchat */}
+
             <div className="chat-header" onClick={() => setIsOpen(!isOpen)}>
                 <div className="chat-title">
                     <span className="live-indicator">●</span> CHAT ALL — Fréquence Opérationnelle
@@ -38,7 +38,7 @@ export default function Chat({ currentUser, messages, onSendMessage }: ChatProps
                 <button className="toggle-btn">{isOpen ? '▼' : '▲'}</button>
             </div>
 
-            {/* Corps du tchat */}
+
             {isOpen && (
                 <div className="chat-body">
                     <div className="messages-list">

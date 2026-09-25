@@ -117,3 +117,4 @@ CREATE TABLE disasters (
     losses INT NOT NULL,
     happened_at TIMESTAMP NOT NULL DEFAULT now()
 );
+

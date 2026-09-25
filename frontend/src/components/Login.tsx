@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { QUARTER_CODES, ROLE_LABELS, type QuarterCode, type Role } from '../data/city';
+import { useState, type FormEvent } from 'react';
+import * as backend from '../backend';
+import { QUARTER_CODES, type QuarterCode } from '../data/city';
 import type { User } from '../types/user';
 import './Login.css';
 
@@ -16,37 +17,30 @@ export default function Login({ onLogin }: LoginProps) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [quarter, setQuarter] = useState<QuarterCode>('A');
-    const [role, setRole] = useState<Role>('QC');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        if (!email || !password || (isRegister && !name)) {
+            setError('Veuillez remplir tous les champs.');
+            return;
+        }
 
-        if (isRegister) {
-            // Validation Inscription
-            if (!name || !email || !password) {
-                setError('Veuillez remplir tous les champs.');
-                return;
+        setLoading(true);
+        setError('');
+        try {
+            // Inscription : on crée le compte (le serveur lui donne le rôle QC), puis on se connecte
+            if (isRegister) {
+                await backend.register(name, email, password, quarter);
             }
-            onLogin({
-                name: name,
-                email: email,
-                role: role,
-                quarter: quarter,
-            });
-        } else {
-            // Validation Connexion
-            if (!email || !password) {
-                setError('Veuillez remplir tous les champs.');
-                return;
-            }
-            // Pas encore de back-end pour retrouver le rôle du compte :
-            // on démarre en QC (modifiable ensuite dans la barre du haut).
-            onLogin({
-                name: email.split('@')[0] || 'Opérateur',
-                email: email,
-                role: 'QC',
-            });
+            // Connexion : le serveur vérifie le mot de passe et renvoie le rôle et le quartier
+            const user = await backend.login(email, password);
+            onLogin(user);
+        } catch (err) {
+            // Message du serveur, ex. "Authentication failed: invalid credentials."
+            setError((err as Error).message);
+            setLoading(false);
         }
     };
 
@@ -63,7 +57,11 @@ export default function Login({ onLogin }: LoginProps) {
                         : 'Accès restreint aux autorités de régulation de crise.'}
                 </p>
 
-                {error && <div className="login-error">{error}</div>}
+                {error && (
+                    <div className="login-error" role="alert">
+                        {error}
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="login-form">
                     {/* Champ NOM (affiché uniquement lors de l'inscription) */}
@@ -104,24 +102,7 @@ export default function Login({ onLogin }: LoginProps) {
                         />
                     </label>
 
-                    {/* Choix du RÔLE (affiché uniquement lors de l'inscription) */}
-                    {isRegister && (
-                        <label className="field-group">
-                            <span>Rôle</span>
-                            <select
-                                value={role}
-                                onChange={(e) => setRole(e.target.value as Role)}
-                            >
-                                {(Object.keys(ROLE_LABELS) as Role[]).map((r) => (
-                                    <option key={r} value={r}>
-                                        {r} — {ROLE_LABELS[r]}
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-                    )}
-
-                    {/* Choix de la ZONE (affiché uniquement lors de l'inscription) */}
+                    {/* Choix de la ZONE (inscription uniquement). Plus de choix du rôle : c'est le serveur qui décide. */}
                     {isRegister && (
                         <label className="field-group">
                             <span>Zone d'affectation</span>
@@ -138,8 +119,8 @@ export default function Login({ onLogin }: LoginProps) {
                         </label>
                     )}
 
-                    <button type="submit" className="login-btn">
-                        {isRegister ? "S'inscrire" : 'Se connecter'}
+                    <button type="submit" className="login-btn" disabled={loading}>
+                        {loading ? 'Connexion…' : isRegister ? "S'inscrire" : 'Se connecter'}
                     </button>
                 </form>
 

@@ -10,7 +10,6 @@ services:
             - "5432:5432"
         volumes: 
             - postgres_data:/var/lib/postgresql/data
-            - ./database:/docker-entrypoint-initdb.d  
         networks:
             kaiju-net:
         healthcheck:
@@ -35,7 +34,8 @@ services:
             - SECRET_KEY=${SECRET_KEY}
             - TRAVEL_SECONDS=${TRAVEL_SECONDS:-30}
             - BLOCK_SECONDS=${BLOCK_SECONDS:-120}
-            - CORS_ORIGINS=http://localhost:8080
+            - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:8080}
+            - DISASTER_EVERY_SECONDS=${DISASTER_EVERY_SECONDS:-0}
         ports:
             - "3000:3000"
         depends_on:

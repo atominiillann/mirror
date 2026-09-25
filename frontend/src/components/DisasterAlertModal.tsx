@@ -3,7 +3,6 @@ import { QUARTERS, type QuarterCode } from '../data/city';
 import type { DisasterAlert } from '../types/disasters';
 import './DisasterAlertModal.css';
 
-/** Libellés des types envoyés par le back-end (mêmes clés que CATASTROPHES dans app.py). */
 const DISASTER_LABELS: Record<string, { label: string; icon: string }> = {
     kaiju_attack: { label: 'Attaque de kaiju', icon: '🦖' },
     earthquake: { label: 'Séisme', icon: '🏚️' },
@@ -12,7 +11,6 @@ const DISASTER_LABELS: Record<string, { label: string; icon: string }> = {
     flood: { label: 'Inondation', icon: '💧' },
 };
 
-/** 120 → « 2 min », 90 → « 1 min 30 s », 45 → « 45 s » */
 function formatDuration(seconds: number): string {
     const minutes = Math.floor(seconds / 60);
     const rest = seconds % 60;
@@ -20,7 +18,6 @@ function formatDuration(seconds: number): string {
     return rest === 0 ? `${minutes} min` : `${minutes} min ${rest} s`;
 }
 
-/** Marque du pluriel : 0 ou 1 → '', 2 et plus → 's' */
 const plural = (n: number) => (n > 1 ? 's' : '');
 
 interface Props {
@@ -35,7 +32,6 @@ export default function DisasterAlertModal({ alert, pendingCount, onDismiss, onS
     const mainButtonRef = useRef<HTMLButtonElement>(null);
     const alertId = alert?.id ?? null;
 
-    // Ouvre la pop-up à chaque nouvelle alerte, la ferme quand la file est vide.
     useEffect(() => {
         const dialog = dialogRef.current;
         if (!dialog) return;
@@ -43,8 +39,7 @@ export default function DisasterAlertModal({ alert, pendingCount, onDismiss, onS
             if (dialog.open) dialog.close();
             return;
         }
-        // Si une alerte était déjà affichée, on referme puis on rouvre :
-        // les lecteurs d'écran annoncent ainsi la nouvelle comme une nouvelle fenêtre.
+
         if (dialog.open) dialog.close();
         dialog.showModal();
         mainButtonRef.current?.focus();
@@ -61,7 +56,7 @@ export default function DisasterAlertModal({ alert, pendingCount, onDismiss, onS
             aria-labelledby="disaster-title"
             aria-describedby="disaster-details"
             onCancel={(e) => {
-                // Touche Échap : c'est React qui ferme (et affiche l'alerte suivante s'il y en a une).
+
                 e.preventDefault();
                 onDismiss();
             }}

@@ -2,6 +2,7 @@ import os
 import psycopg2
 import bcrypt
 import random
+import asyncio
 import math
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
@@ -27,6 +28,7 @@ DEMO_PASSWORD = os.getenv("DEMO_PASSWORD")
 TRAVEL_SECONDS = int(os.getenv("TRAVEL_SECONDS", "30"))
 # Duree de coupure des routes apres une catastrophe
 BLOCK_SECONDS = int(os.getenv("BLOCK_SECONDS", "120"))
+DISASTER_EVERY_SECONDS = int(os.getenv("DISASTER_EVERY_SECONDS", "0"))
 # type de catastrophe
 CATASTROPHES = {
     "kaiju_attack": (0.30, True),
@@ -209,7 +211,7 @@ async def websocket_endpoint(websocket: WebSocket):
 def login(data: LoginRequest):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT password_hash, role, neighborhood_code FROM users WHERE email = %s", (data.username,))
+    cursor.execute("SELECT password_hash, role, neighborhood_code, name FROM users WHERE email = %s", (data.username,))
     user = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -218,7 +220,7 @@ def login(data: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication failed: invalid credentials."
         )
-    stored_password_hash, role, neighborhood_code = user
+    stored_password_hash, role, neighborhood_code, name = user
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -229,6 +231,7 @@ def login(data: LoginRequest):
         "access_token": access_token,
         "token_type": "bearer",
         "username": data.username,
+        "name": name,
         "role": role,
         "neighborhood_code": neighborhood_code
     }
@@ -404,10 +407,13 @@ async def create_transfer(
     
     # la cible sera creditee a l'arrivee du convoi
     duree = int(TRAVEL_SECONDS * multiplicateur)
+    cursor.execute("SELECT id FROM users WHERE email = %s", (current_user["email"],))
+    demandeur_id = cursor.fetchone()[0]
     cursor.execute(
         "INSERT INTO transfers (resource_name, quantity, source_code, target_code, status, requested_by, arrives_at) "
-        "VALUES (%s, %s, %s, %s, 'in_transit', NULL, now() + (%s || ' seconds')::interval)",
-        (transfer.resource_type, transfer.quantity, transfer.source_quarter, transfer.target_quarter, duree)
+        "VALUES (%s, %s, %s, %s, 'in_transit', %s, now() + (%s || ' seconds')::interval)",
+        (transfer.resource_type, transfer.quantity, transfer.source_quarter,
+         transfer.target_quarter, demandeur_id, duree)
     )
     conn.commit()
     cursor.close()
@@ -510,7 +516,6 @@ class DisasterRequest(BaseModel):
 
 @app.post("/disasters", status_code=201)
 async def declencher_catastrophe(d: DisasterRequest, current_user: dict = Depends(get_current_user)):
-    """Declenche une catastrophe sur un quartier. City Director uniquement."""
     if current_user["role"] != "CD":
         raise HTTPException(status_code=403, detail="Seul le City Director peut declencher une catastrophe.")
     if d.type not in CATASTROPHES:
@@ -519,13 +524,18 @@ async def declencher_catastrophe(d: DisasterRequest, current_user: dict = Depend
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    # Une partie des ressources du quartier detruite
+    # Pertes calculees AVANT la mise a jour : un RETURNING lirait les quantites d'apres
+    cursor.execute(
+        "SELECT COALESCE(SUM(floor(current_quantity * %s)), 0) "
+        "FROM neighborhood_resources WHERE district_code = %s",
+        (part_detruite, d.district)
+    )
+    pertes = int(cursor.fetchone()[0])
     cursor.execute(
         "UPDATE neighborhood_resources SET current_quantity = current_quantity - floor(current_quantity * %s) "
-        "WHERE district_code = %s RETURNING floor(current_quantity * %s)",
-        (part_detruite, d.district, part_detruite)
+        "WHERE district_code = %s",
+        (part_detruite, d.district)
     )
-    pertes = sum(int(r[0]) for r in cursor.fetchall())
 
     # Les routes sont coupees pendant un moment
     if coupe_les_routes:
@@ -534,6 +544,10 @@ async def declencher_catastrophe(d: DisasterRequest, current_user: dict = Depend
             "WHERE neighborhood_code_1 = %s OR neighborhood_code_2 = %s",
             (BLOCK_SECONDS, d.district, d.district)
         )
+    cursor.execute(
+        "INSERT INTO disasters (type, district_code, losses) VALUES (%s, %s, %s)",
+        (d.type, d.district, pertes)
+    )
     conn.commit()
     cursor.close()
     conn.close()
@@ -541,3 +555,85 @@ async def declencher_catastrophe(d: DisasterRequest, current_user: dict = Depend
     await manager.broadcast({"event": "disaster", "type": d.type, "district": d.district,
                              "losses": pertes, "blocked_seconds": BLOCK_SECONDS if coupe_les_routes else 0})
     return {"type": d.type, "district": d.district, "losses": pertes}
+
+async def catastrophes_automatiques():
+    while True:
+        await asyncio.sleep(DISASTER_EVERY_SECONDS)
+        faux_cd = {"role": "CD", "neighborhood_code": None, "email": "systeme"}
+        await declencher_catastrophe(
+            DisasterRequest(type=random.choice(list(CATASTROPHES)),
+                            district=random.choice(["A", "E", "W", "X", "Z"])),
+            faux_cd
+        )
+
+
+@app.on_event("startup")
+async def demarrer_les_catastrophes():
+    if DISASTER_EVERY_SECONDS > 0:
+        asyncio.create_task(catastrophes_automatiques())
+
+@app.get("/calendar")
+def calendrier():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT type, district_code, losses, happened_at FROM disasters ORDER BY id DESC LIMIT 50")
+    catastrophes = [{"type": r[0], "district": r[1], "losses": r[2], "at": r[3].isoformat()}
+                    for r in cursor.fetchall()]
+    cursor.execute("SELECT resource_name, quantity, source_code, target_code, status, arrives_at, created_at "
+                   "FROM transfers ORDER BY id DESC LIMIT 50")
+    transferts = [{"resource": r[0], "quantity": r[1], "source": r[2], "target": r[3],
+                   "status": r[4], "arrives_at": r[5].isoformat() if r[5] else None,
+                   "at": r[6].isoformat()} for r in cursor.fetchall()]
+    cursor.close()
+    conn.close()
+    return {"disasters": catastrophes, "transfers": transferts}
+
+@app.post("/reset")
+async def remettre_a_zero(current_user: dict = Depends(get_current_user)):
+    # Remet les stocks et les routes a leur etat de depart (que cd)
+    if current_user["role"] != "CD":
+        raise HTTPException(status_code=403, detail="Seul le City Director peut remettre la ville a zero.")
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE neighborhood_resources SET current_quantity = initial_quantity")
+    cursor.execute("UPDATE neighborhood_connections SET blocked_until = NULL")
+    conn.commit()
+    cursor.close()
+    conn.close()
+    await manager.broadcast({"event": "city_reset"})
+    return {"message": "Ville remise a zero"}
+
+@app.get("/transfers")
+def liste_transferts():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    livrer_les_transferts_arrives(cursor)
+    conn.commit()
+    cursor.execute(
+        "SELECT id, resource_name, quantity, source_code, target_code, intermediary_code, "
+        "status, arrives_at, created_at FROM transfers ORDER BY id DESC LIMIT 100"
+    )
+    lignes = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return {"transfers": [
+        {"id": r[0], "resource": r[1], "quantity": r[2], "source": r[3], "target": r[4],
+         "intermediary": r[5], "status": r[6],
+         "arrives_at": r[7].isoformat() if r[7] else None,
+         "created_at": r[8].isoformat()}
+        for r in lignes
+    ]}
+
+@app.get("/blocked-roads")
+def routes_coupees():
+    """Corridors actuellement impraticables, pour que le frontend les affiche apres un rechargement."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT neighborhood_code_1, neighborhood_code_2, blocked_until "
+        "FROM neighborhood_connections WHERE blocked_until > now()"
+    )
+    lignes = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return {"blocked": [{"from": r[0], "to": r[1], "until": r[2].isoformat()} for r in lignes]}
