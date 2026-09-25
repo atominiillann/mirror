@@ -1,0 +1,149 @@
+.map-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.map-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 14px;
+  background: #0b1020;
+}
+
+.bay {
+  fill: #13244a;
+  stroke: #2b4a86;
+  stroke-width: 2;
+}
+
+.quarter {
+  stroke: #05070f;
+  stroke-width: 3;
+  cursor: pointer;
+  fill-opacity: 0.8;
+  transition: fill-opacity 0.15s ease, transform 0.15s ease;
+  transform-origin: center;
+  outline: none;
+}
+
+.quarter.is-hovered,
+.quarter:focus-visible {
+  fill-opacity: 1;
+}
+
+.quarter.is-selected {
+  stroke: #ffffff;
+  stroke-width: 6;
+  fill-opacity: 1;
+}
+
+.quarter:focus-visible {
+  outline: none;
+  stroke: #ffffff;
+  stroke-width: 8;
+  stroke-dasharray: 16 10;
+}
+
+.quarter.is-critical {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    fill-opacity: 0.75;
+  }
+
+  50% {
+    fill-opacity: 1;
+  }
+}
+
+.routes {
+  pointer-events: none;
+}
+
+.route-land {
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 4;
+  stroke-dasharray: 14 10;
+}
+
+.route-sea {
+  stroke: #63d5ff;
+  stroke-width: 4;
+  stroke-dasharray: 4 14;
+  stroke-linecap: round;
+}
+
+.sea-hub {
+  fill: #63d5ff;
+  fill-opacity: 0.3;
+  stroke: #63d5ff;
+  stroke-width: 3;
+}
+
+.sea-label,
+.label-name,
+.label-level {
+  fill: #e8f0ff;
+  font-family: inherit;
+  text-anchor: middle;
+}
+
+.sea-label {
+  font-size: 24px;
+  fill: #9fd9f5;
+  letter-spacing: 2px;
+}
+
+.label {
+  cursor: pointer;
+}
+
+.label-code {
+  font-size: 68px;
+  font-weight: 800;
+  fill: #05070f;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 2;
+}
+
+.label-name {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+.label-level {
+  font-size: 20px;
+  fill: #b9c6e4;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 13px;
+  color: #b9c6e4;
+}
+
+.map-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-legend .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}

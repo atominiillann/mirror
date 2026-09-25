@@ -1,0 +1,167 @@
+.disaster-dialog {
+    width: min(480px, calc(100vw - 32px));
+    padding: 0;
+    border: 1px solid rgba(255, 59, 79, 0.65);
+    border-radius: 14px;
+    background: #0f1730;
+    color: #e8f0ff;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.7),
+        0 0 48px rgba(255, 39, 64, 0.25);
+    overflow: auto;
+}
+
+.disaster-dialog::backdrop {
+    background: rgba(5, 7, 15, 0.75);
+    backdrop-filter: blur(4px);
+}
+
+.disaster-hazard {
+    height: 10px;
+    background: repeating-linear-gradient(-45deg, #ffd60a 0 14px, #05070f 14px 28px);
+}
+
+.disaster-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 18px 20px 10px;
+}
+
+.disaster-icon {
+    font-size: 34px;
+    line-height: 1;
+}
+
+.disaster-head h2 {
+    font-size: 20px;
+    line-height: 1.25;
+}
+
+.disaster-time {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #93a3c6;
+}
+
+.disaster-quarter {
+    margin-left: auto;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    color: #05070f;
+    font-weight: 800;
+    font-size: 20px;
+}
+
+.disaster-details {
+    display: grid;
+    gap: 8px;
+    padding: 6px 20px 18px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #d1dbe8;
+}
+
+.disaster-details p {
+    margin: 0;
+}
+
+.disaster-details strong {
+    color: #ff6b7d;
+}
+
+.disaster-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 20px 18px;
+    background: #101a33;
+    border-top: 1px solid #1e2a49;
+}
+
+.disaster-queue {
+    margin: 0 auto 0 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffb800;
+}
+
+.disaster-btn {
+    padding: 9px 14px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.disaster-btn.secondary {
+    background: transparent;
+    color: #b9c6e4;
+    border: 1px solid #2b3a63;
+}
+
+.disaster-btn.secondary:hover {
+    background: #1d2c52;
+}
+
+.disaster-btn.primary {
+    background: #d7102b;
+    color: #ffffff;
+    border: 1px solid #d7102b;
+}
+
+.disaster-btn.primary:hover {
+    background: #b80d24;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .disaster-dialog[open] {
+        animation: disaster-in 0.3s ease-out;
+    }
+
+    .disaster-icon {
+        animation: disaster-pulse 0.9s ease-in-out 3;
+    }
+}
+
+@keyframes disaster-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes disaster-pulse {
+    50% {
+        transform: scale(1.18);
+    }
+}
+
+.live-banner {
+    margin: 12px 0 0;
+    padding: 8px 14px;
+    border: 1px solid rgba(255, 184, 0, 0.4);
+    border-radius: 8px;
+    background: rgba(255, 184, 0, 0.1);
+    color: #ffb800;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.live-banner:empty {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
