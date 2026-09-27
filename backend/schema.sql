@@ -118,3 +118,11 @@ CREATE TABLE disasters (
     happened_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    author_name VARCHAR(100) NOT NULL,
+    author_role VARCHAR(20) NOT NULL,
+    text VARCHAR(500) NOT NULL,
+    sent_at TIMESTAMP NOT NULL DEFAULT now()
+);

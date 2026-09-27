@@ -653,42 +653,20 @@ def routes_coupees():
     conn.close()
     return {"blocked": [{"from": r[0], "to": r[1], "until": r[2].isoformat()} for r in lignes]}
 
-def message_vers_json(r):
-    return {"id": r[0], "sender": r[1], "role": r[2], "text": r[3],
-            "created_at": r[4].isoformat()}
-
-
-@app.get("/messages")
-def liste_messages():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, author_name, author_role, text, sent_at "
-        "FROM messages ORDER BY id DESC LIMIT 100"
-    )
-    lignes = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    # Du plus ancien au plus recent pour l'affichage du chat
-    return {"messages": [message_vers_json(r) for r in reversed(lignes)]}
-
-
 @app.post("/messages", status_code=201)
 async def envoyer_message(m: MessageRequest, current_user: dict = Depends(get_current_user)):
     # Le nom et le role viennent du jeton donc personne ne peut ecrire sous l'identite d'un autre
-    nom = current_user.get("name") or current_user["email"]
+    nom = current_user["email"]
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO messages (author_name, author_role, text) VALUES (%s, %s, %s) "
-        "RETURNING id, author_name, author_role, text, sent_at",
-        (nom, current_user["role"], m.text),
-    )
-    ligne = cursor.fetchone()
+    cursor.execute("INSERT INTO messages (author_name, author_role, text) VALUES (%s, %s, %s) RETURNING id",
+                   (nom, current_user["role"], m.text))
+    message_id = cursor.fetchone()[0]
     conn.commit()
     cursor.close()
     conn.close()
 
-    message = message_vers_json(ligne)
-    await manager.broadcast({"event": "chat_message", **message})
+    message = {"event": "chat_message", "id": message_id, "author_name": nom,
+               "author_role": current_user["role"], "text": m.text}
+    await manager.broadcast(message)
     return message
