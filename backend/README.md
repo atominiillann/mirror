@@ -144,3 +144,12 @@ joignable et ne compte plus comme fournisseur possible.
 - Le seuil de retention est verifie dans la clause `WHERE` de l'`UPDATE`, donc deux transferts simultanes ne peuvent pas passer sous le seuil.
 - Un transfert avec quartier intermediaire est enregistre en `pending` ; le stock ne bouge qu'a l'approbation.
 - Toute la configuration passe par des variables d'environnement : le meme code tourne en local et en production.
+
+## Déploiement
+
+- Frontend : https://kaiju-frontend.onrender.com
+- API : https://kaiju-backend.onrender.com
+- Documentation interactive : https://kaiju-backend.onrender.com/docs
+
+Le plan gratuit met le service en veille après 15 minutes d'inactivité.
+Le premier appel peut donc prendre une cinquantaine de secondes.
