@@ -86,13 +86,13 @@ def get_current_user(authorization: str = Header(None)):
     # un compte supprime ou change de role perd ses droits immediatement.
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT email, role, neighborhood_code FROM users WHERE email = %s", (email,))
+    cursor.execute("SELECT email, role, neighborhood_code, name FROM users WHERE email = %s", (email,))
     user = cursor.fetchone()
     cursor.close()
     conn.close()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Compte introuvable.")
-    return {"email": user[0], "role": user[1], "neighborhood_code": user[2]}
+    return {"email": user[0], "role": user[1], "neighborhood_code": user[2], "name": user[3]}
 
 @app.on_event("startup")
 def init_database():

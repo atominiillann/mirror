@@ -45,9 +45,9 @@ sont saisies dans l'interface de l'hebergeur.
 docker compose up --build
 ```
 
-- API : http://localhost:3000
-- Documentation interactive (Swagger) : http://localhost:3000/docs
-- Frontend : http://localhost:8080
+- API : http://localhost:3001
+- Documentation interactive (Swagger) : http://localhost:3001/docs
+- Frontend : http://localhost:8090
 
 Au premier demarrage, l'API cree les tables (`schema.sql` puis `fix.sql`) et les
 comptes de demonstration. Pour repartir d'une base vierge :

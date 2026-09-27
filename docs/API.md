@@ -1,6 +1,6 @@
 # API Kaiju — description des routes
 
-Base : `http://localhost:3000`. Documentation interactive : `/docs`.
+Base : `http://localhost:3001`. Documentation interactive : `/docs`.
 
 Les routes protegees attendent l'en-tete `Authorization: Bearer <token>`, obtenu
 via `POST /login`. Le role et le quartier sont relus en base a chaque appel, jamais
@@ -143,7 +143,7 @@ Refuse un transit en attente. Memes regles d'acces.
 
 ## WebSocket
 
-`ws://localhost:3000/ws` — diffusion a tous les clients connectes.
+`ws://localhost:3001/ws` — diffusion a tous les clients connectes.
 
 | Evenement | Quand | Contenu |
 |---|---|---|
